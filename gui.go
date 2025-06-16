@@ -31,7 +31,7 @@ func guiWorker() {
 			case "password":
 				password, _ := findPassword(config.Passwords, req.data.Code, req.data.Device)
 				if len(password) > 0 {
-					ok, err := dlgs.Question(req.data.Device, req.data.Message, true)
+					ok, err := dlgs.Question(req.data.Device, filepath.Join(config.Passwords, req.data.Code, req.data.Device)+" → 🔑 → "+req.data.Code, true)
 					if err != nil || !ok {
 						response = ""
 					} else if ok {
