@@ -88,7 +88,7 @@ func findTrustedFiles(base, name string) ([]string, error) {
 		if err != nil {
 			return err
 		}
-		if d.Name() == name {
+		if d.Name() == name && !d.IsDir() {
 			files = append(files, path)
 		}
 		return nil

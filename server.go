@@ -43,7 +43,7 @@ func makeNewServer(server string, allowedIPs []string, callback func(w http.Resp
 		TLSConfig: &tls.Config{
 			Certificates: []tls.Certificate{tlsCert},
 		},
-		Handler:      ipFilterMiddleware(http.HandlerFunc(callback)),
+		Handler:      ipFilterMiddleware(allowedIPs, http.HandlerFunc(callback)),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  120 * time.Second,
@@ -76,7 +76,7 @@ func generateSelfSignedCert(addresses []string) (tls.Certificate, error) {
 
 }
 
-func ipFilterMiddleware(next http.Handler) http.Handler {
+func ipFilterMiddleware(allowedIPs []string, next http.Handler) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip, _, err := net.SplitHostPort(r.RemoteAddr)
