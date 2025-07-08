@@ -51,11 +51,11 @@ The configuration requires the following files and folders:
 - **Passwords folder**  
   Stores cached passwords for automatic reuse and filling.
 
-- **Server file**  
+- **Server**  
   Contains the server address in the format `IP:PORT`.
 
-- **Trusted folder**  
-  Contains a file named `trusted` listing allowed IP addresses, one per line, from which requests can be accepted.
+- **Trusted file**  
+  Recursively finds all **/filename (pattern from config) files with allowed IPs (one per line, space, comma, or newline separated).
   
 ## License
 

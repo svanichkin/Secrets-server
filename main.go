@@ -6,6 +6,9 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"os/exec"
+	"time"
 )
 
 var allowedIPs []string
@@ -18,45 +21,60 @@ func main() {
 		fmt.Println("Failed to initialize config:", err)
 		return
 	}
-	allowedIPs, err = findTrustedIpAddress(config.Trusted)
+	allowedIPs, err := findTrustedIpAddress(config.Trusted)
 	if err != nil {
-		fmt.Println("Please add a file named 'trusted' with trusted IPs to the folder '" + config.Trusted + "' then 'trusted' files are searched recursively in this folder and its subfolders.")
+		fmt.Printf("Error searching for trusted IPs files in '%s': %v\n", config.Trusted, err)
 		return
 	}
-	server, err := readServer(config.Server)
-	if err != nil {
-		fmt.Println("Please create the file '" + config.Trusted + "' and add IP:port to start the server.")
+	if len(allowedIPs) == 0 {
+		fmt.Printf("No trusted IPs found. Please add IP in '%s' file.\n", config.Trusted)
 		return
 	}
+	server := config.Server
 	host, port, err := net.SplitHostPort(server)
 	if err != nil || net.ParseIP(host) == nil || !isValidPort(port) {
-		fmt.Println("Please check the file '" + config.Trusted + "' and check IP:port.")
+		fmt.Println("Please check config path '" + config.Trusted + "' and verify IP:port entries.")
 		return
 	}
 
 	go guiWorker()
-	makeNewServer(server, []string{"localhost", "127.0.0.1", host}, dialogHandler)
+	makeNewServer(server, allowedIPs, dialogHandler)
+
+	// If binary updated - restart
+
+	exePath, _ := os.Executable()
+	info, _ := os.Stat(exePath)
+	lastModTime := info.ModTime()
+	for {
+		time.Sleep(30 * time.Second)
+		info, err := os.Stat(exePath)
+		if err != nil {
+			continue
+		}
+		if info.ModTime() != lastModTime {
+			fmt.Println("Binary updated, stop service...")
+			exec.Command(exePath).Start()
+			os.Exit(0)
+		}
+	}
 
 }
 
 func dialogHandler(w http.ResponseWriter, r *http.Request) {
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
 	var reqData RequestData
 	err := json.NewDecoder(r.Body).Decode(&reqData)
 	if err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
-
 	resultChan := make(chan string)
 	guiRequests <- guiRequest{data: reqData, result: resultChan}
-
 	answer := <-resultChan
-
 	if answer == "" {
 		switch reqData.Type {
 		case "confirm":
@@ -68,9 +86,8 @@ func dialogHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-
 	log.Println("Answer received from GUI:", answer)
-
 	w.Header().Set("Content-Type", "text/plain")
 	w.Write([]byte(answer))
+
 }

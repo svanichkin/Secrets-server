@@ -4,57 +4,32 @@ import (
 	"bufio"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
-func findTrustedIpAddress(rootPath string) ([]string, error) {
-	var trustedLines []string
+func findTrustedIpAddress(pattern string) ([]string, error) {
 
-	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if info.IsDir() {
-			trustedFile := filepath.Join(path, "trusted")
-			if _, err := os.Stat(trustedFile); err == nil {
-				file, err := os.Open(trustedFile)
-				if err != nil {
-					return err
-				}
-				defer file.Close()
-
-				scanner := bufio.NewScanner(file)
-				for scanner.Scan() {
-					trustedLines = append(trustedLines, scanner.Text())
-				}
-				if err := scanner.Err(); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	})
-
-	return trustedLines, err
-}
-
-func readServer(filePath string) (string, error) {
-
-	file, err := os.Open(filePath)
+	files, err := findTrustedFiles(parseTrustedPattern(pattern))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	defer file.Close()
+	ipSet := make(map[string]struct{})
+	for _, f := range files {
+		lines, err := readTrustedFile(f)
+		if err != nil {
+			return nil, err
+		}
+		for _, ip := range lines {
+			ipSet[ip] = struct{}{}
+		}
+	}
+	var ips []string
+	for ip := range ipSet {
+		ips = append(ips, ip)
+	}
 
-	scanner := bufio.NewScanner(file)
-	if scanner.Scan() {
-		return scanner.Text(), nil
-	}
-	if err := scanner.Err(); err != nil {
-		return "", err
-	}
+	return ips, nil
 
-	return "", nil
 }
 
 func findPassword(basePath, code, device string) (string, error) {
@@ -95,4 +70,55 @@ func setPassword(basePath, code, device, password string) error {
 	}
 
 	return nil
+}
+
+func parseTrustedPattern(pattern string) (base, name string) {
+
+	name = filepath.Base(pattern)
+	base = strings.Split(pattern, "**")[0]
+
+	return strings.TrimRight(base, "/"), name
+
+}
+
+func findTrustedFiles(base, name string) ([]string, error) {
+
+	var files []string
+	err := filepath.WalkDir(base, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.Name() == name {
+			files = append(files, path)
+		}
+		return nil
+	})
+
+	return files, err
+
+}
+
+func readTrustedFile(path string) ([]string, error) {
+
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	var result []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		fields := strings.FieldsFunc(line, func(r rune) bool {
+			return r == ' ' || r == ',' || r == '\t' || r == '\n'
+		})
+		for _, f := range fields {
+			if f != "" {
+				result = append(result, f)
+			}
+		}
+	}
+
+	return result, scanner.Err()
+
 }

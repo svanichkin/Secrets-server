@@ -28,13 +28,16 @@ type RequestData struct {
 	Code string `json:"code"`
 }
 
-func makeNewServer(server string, certIps []string, callback func(w http.ResponseWriter, r *http.Request)) {
+func makeNewServer(server string, allowedIPs []string, callback func(w http.ResponseWriter, r *http.Request)) {
 
-	tlsCert, err := generateSelfSignedCert(certIps)
+	host, _, err := net.SplitHostPort(server)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Invalid server address:", err)
 	}
-
+	tlsCert, err := generateSelfSignedCert([]string{host})
+	if err != nil {
+		log.Fatal("Failed to generate TLS cert:", err)
+	}
 	srv := &http.Server{
 		Addr: server,
 		TLSConfig: &tls.Config{
@@ -45,16 +48,16 @@ func makeNewServer(server string, certIps []string, callback func(w http.Respons
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
-
-	log.Println("Starting server on " + server)
-	log.Println("Trusted IPs: " + strings.Join(allowedIPs, ", "))
-	err = srv.ListenAndServeTLS("", "")
-	if err != nil {
+	log.Println("Starting server on", server)
+	log.Println("Trusted IPs:", strings.Join(allowedIPs, "\n"))
+	if err := srv.ListenAndServeTLS("", ""); err != nil {
 		log.Fatal(err)
 	}
+
 }
 
 func generateSelfSignedCert(addresses []string) (tls.Certificate, error) {
+
 	result, err := selfsigned.GenerateCert(
 		selfsigned.Hosts(addresses),
 		selfsigned.RSABits(2048),
@@ -63,17 +66,18 @@ func generateSelfSignedCert(addresses []string) (tls.Certificate, error) {
 	if err != nil {
 		return tls.Certificate{}, err
 	}
-
 	cert, err := tls.X509KeyPair(result.PublicCert, result.PrivateKey)
 	if err != nil {
 		return tls.Certificate{}, err
 	}
-
 	log.Println("Certificate fingerprint:", result.Fingerprint)
+
 	return cert, nil
+
 }
 
 func ipFilterMiddleware(next http.Handler) http.Handler {
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip, _, err := net.SplitHostPort(r.RemoteAddr)
 		if err != nil {
@@ -87,6 +91,7 @@ func ipFilterMiddleware(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+
 }
 
 func isValidPort(port string) bool {
@@ -97,4 +102,5 @@ func isValidPort(port string) bool {
 	}
 
 	return p > 0 && p <= 65535
+
 }
