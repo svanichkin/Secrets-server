@@ -1,5 +1,18 @@
 #!/bin/sh
 
+#./secret_client_sample.sh password "Get me password for LUKS" "luks"
+
+# Type: "confirm", "password", "text"
+# Message: "Get me password for LUKS"
+# Device: "Script get name this device from system" 
+# On Server, device name used to automatically search for a password 
+# in a folder named 'code' and retrieve the password if a match is found.
+# Code: "luks"
+# For example, the client may request a password for a specific application,
+# such as "luks" (e.g., when a password is needed after a device reboot and disk reattachment).
+# Or, for example, request confirmation for a USB flash drive inserted into the device;
+# you can specify "usb" as an additional hint.
+
 SERVERS="
 https://localhost:8443
 https://127.0.0.1:8443
@@ -60,7 +73,6 @@ check_and_install() {
 }
 
 check_and_install curl
-check_and_install jq
 
 REQ_TYPE=${1:-confirm}
 REQ_MESSAGE=${2:-"Example operation requires your approval"}
